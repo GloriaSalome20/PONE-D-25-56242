@@ -1,0 +1,166 @@
+---
+title: "stan_approach"
+author: "Gloria"
+date: '2023-05-15'
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, 
+                      comment = NA, # Recommended
+                      fig.width = 8, # default figure width in inches
+                      fig.height = 8, # default figure height in inches
+                      message = FALSE, # Turn off load messages
+                      warning = FALSE # Turn off warnings
+                      )
+
+```
+from the model fit, first getting the parameters with their stats
+```{r,echo=FALSE}
+
+#source
+# https://mc-stan.org/users/documentation/case-studies/boarding_school_case_study.html
+
+
+#loading the libraries used
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(rstan)
+library(bayesplot)
+library(rstanarm)
+library(bayestestR)
+library(logspline)
+library(bridgesampling)
+library(ggtext);library(mdthemes)
+library(knitr) ; library(table1)
+library(readxl);library(dplyr)
+library(ggplot2);library(tidyverse)
+library(lme4);library(mctest)
+library(GGally);library(corpcor)
+library(mgcv);library(lubridate)
+library(tidyr);library(dplyr)
+library(XLS);library(gtsummary)
+library(gridExtra)
+library(writexl);library(lmtest)
+library(ggeffects);library(tidyverse)
+library(lmerTest);library(MASS)
+library(tidyverse);library(kableExtra)  
+library(readr);library(readxl)
+library(moments);library(e1071)
+library(table1)
+library(flextable)
+library(magrittr)
+```
+
+
+
+
+# dealing with second phase data
+
+```{r,echo=FALSE}
+#loading the data thatwill be fited in the model
+df <- read.csv("C:/Users/Admin/Desktop/SwissTPH-20250715T115252Z-1-004/SwissTPH/my_project/2025_retrive/my_project-20250826T113737Z-1-001/my_project/stan_approach/new_data_intervention_daily_from_godlove2904.csv")
+
+
+#extracting the column involved, the mosquito number and days
+data = df$TOTAL_FEMALE
+n_days <- length(data)
+
+
+
+#initial parameters which are extracted from the fourier series
+#https://github.com/SwissTPH/openmalaria/wiki/ScenarioTransmission
+
+
+a1 = -1.404
+b1 = 1.458
+a2 = 0.3616
+b2 = 0.0958
+
+
+# time points specified
+t = seq(1,n_days,by=1)
+
+
+# the function the data will be fitted to, this accounts for seasonality
+lograte = 0.026734 + a1*cos(2*pi*t/366) + b1*sin(2*pi*t/366) +
+  a2*cos(4*pi*t/366) + b2*sin(4*pi*t/366)
+
+rate = exp(lograte)
+
+
+#using the stan script
+mod1 = stan_model("C:/Users/Admin/Desktop/SwissTPH-20250715T115252Z-1-004/SwissTPH/my_project/2025_retrive/my_project-20250826T113737Z-1-001/my_project/stan_approach/stan1.stan")
+
+
+mod1_data <- list(
+  n = length(data),
+  yTotalDaily = data,
+  t = t,
+  priorscale = 1
+)
+
+
+#fitting the model from stan to the data
+mod1_fit <- sampling(mod1, data = mod1_data, iter = 500, 
+                     control = list(adapt_delta = 0.99), cores = 4)
+posterior1 <- as.matrix(mod1_fit)
+
+
+
+#results
+class(mod1_fit)
+summary(mod1_fit)$summary %>% head(6)
+
+
+
+##ploting density plots of the parameters
+pars = c('a1','b1','a2','b2')
+stan_dens(mod1_fit,separate_chains = TRUE,pars=pars)
+
+
+
+
+
+#ploting trials
+
+smr_pred <- cbind(as.data.frame(summary(
+  mod1_fit, pars = "lograte", probs = c(0.05, 0.5, 0.95))$summary), t, data)
+colnames(smr_pred) <- make.names(colnames(smr_pred)) # to remove % in the col names
+
+ggplot(smr_pred, mapping = aes(x = t)) +
+  geom_ribbon(aes(ymin = X5., ymax = X95.), alpha = 0.35) +
+  geom_line(mapping = aes(x = t, y = X50.)) + 
+  geom_point(mapping = aes(y = data)) +
+  labs(x = "Day", y = "Number of mosq")
+
+```
+
+
+variation in the regression parameters
+```{r,echo=FALSE}
+#polt
+plot(mod1_fit)
+```
+
+
+
+
+
+```{r,echo=FALSE}
+
+
+library(bayesplot)
+
+mod1_fit %>%
+  mcmc_trace()
+mod1_fit %>%
+  rhat() %>%
+  mcmc_rhat() +
+  yaxis_text()
+
+```
+

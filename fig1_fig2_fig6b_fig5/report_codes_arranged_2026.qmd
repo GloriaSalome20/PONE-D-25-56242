@@ -1,0 +1,770 @@
+---
+title: "manuscript codes"
+author: "Gloria"
+format: html
+editor: visual
+execute: 
+  warning: FALSE
+---
+
+## Libraries and Sources
+
+```{r}
+#| echo = FALSE
+rm(list=ls())
+#library(reshape2)
+library(ggplot2)
+library(bootstrap)
+library(scales)
+library("dplyr")
+library(ggplot2)
+library(vctrs)
+library(tidyr)
+library(tidyverse)
+#library(shiny)
+library(deSolve)
+library(ggplot2)
+#library(gridGraphics)   # Disable this after testing to avoid messing up Shiny
+#library(shinyjs)
+#library(shinythemes)
+source("ODEModel.R")
+source("ODEMosquitoParameters.R")
+source("ODEAuxiliaryFunctions.R")
+source("ODEControlMeasuresParameters.R")
+source("ODETransmissionParameters.R")
+source("ODEInterventions.R")
+#source("ODEInterventions - FirstPass.R")
+source("ODEModelOutput.R")
+source("FeedingCycle.R")
+source("multiplot.R")
+```
+
+Get parameter for a specific specie
+
+Different start time for LAR and BIO will crush at the max time entered - to be fixed Turn on required specie
+
+```{r,echo = FALSE}
+#| echo: FALSE
+
+MOSQUITO_PARAMETERS_1 = getAnGambiaeParameters()
+# MOSQUITO_PARAMETERS_2 = getAnArabiensisParameters()
+# MOSQUITO_PARAMETERS_3 = getAnFunestusParameters()
+
+# simulation runs per day - enter the end time
+INITIAL_MODELRUNTIME_VALUE   = 365
+
+#Enter the coverage for a specific intervetion
+# To turn it on  - enter the required time which is < the max model run time
+# To turn it off - enter INITIAL_MODELRUNTIME_VALUE + 1
+
+###************************************************************
+
+#Source reduction, coverage value, time it is on
+INITIAL_SRE_COVERAGE = 0.0
+INITIAL_SRE_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+#LArvaciding, coverage value, time it is on
+INITIAL_LAR_COVERAGE = 0.0
+INITIAL_LAR_TIME     = INITIAL_MODELRUNTIME_VALUE + 1 #75 
+
+#Biological, coverage value, time it is on
+INITIAL_BIO_COVERAGE = 0.0
+INITIAL_BIO_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+#ATSB, coverage value, time it is on
+INITIAL_ATSB_COVERAGE = 0.0
+INITIAL_ATSB_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+#Space Spraying, coverage value, time it is on
+INITIAL_SSP_COVERAGE = .00
+INITIAL_SSP_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+#Odor Traps, coverage value, time it is on
+INITIAL_OBT_COVERAGE = .00
+INITIAL_OBT_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+#LLINs, coverage value, time it is on
+INITIAL_ITN_COVERAGE = 0.3
+INITIAL_ITN_TIME     = 0
+#IRS
+INITIAL_IRS_COVERAGE = 0.0
+INITIAL_IRS_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+#House modification
+INITIAL_HOU_COVERAGE = 0.0
+INITIAL_HOU_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+#Personal Protection measure
+INITIAL_PPM_COVERAGE = 0.0
+INITIAL_PPM_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+#Cattle - Systemic
+INITIAL_ECS_COVERAGE = 0.0
+INITIAL_ECS_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+#Cattle - Topical
+INITIAL_ECT_COVERAGE = 0.0
+INITIAL_ECT_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+#Resting and Ovipositing - OviTraps -assuming same coverage for ATSB and SSP
+INITIAL_OVI_COVERAGE = 0.0
+INITIAL_OVI_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+## Get intervetions parameters - LLINs for testing
+#INTERVENTION_PARAMETERS = getInterventionsParameters(ITNcov=INITIAL_ITN_COVERAGE,time_ITN_on=INITIAL_ITN_TIME)
+
+## Get intervetions parameters
+INTERVENTION_PARAMETERS = getInterventionsParameters(
+  #Source Reduction
+  SREcov=INITIAL_SRE_COVERAGE,time_SRE_on=INITIAL_SRE_TIME,
+  #Larvaciding
+  LARcov=INITIAL_LAR_COVERAGE,time_LAR_on=INITIAL_LAR_TIME,
+  #Biological Control
+  BIOcov=INITIAL_BIO_COVERAGE,time_BIO_on=INITIAL_BIO_TIME,
+  
+  #ATSB
+  ATSBcov=INITIAL_ATSB_COVERAGE,time_ATSB_on=INITIAL_ATSB_TIME,
+  #Space Spraying
+  SSPcov=INITIAL_SSP_COVERAGE,time_SSP_on=INITIAL_SSP_TIME,
+  #Odor Traps
+  OBTcov=INITIAL_OBT_COVERAGE,time_OBT_on=INITIAL_OBT_TIME,
+  #LLINs
+  ITNcov=INITIAL_ITN_COVERAGE,time_ITN_on=INITIAL_ITN_TIME,
+  #IRS
+  IRScov=INITIAL_IRS_COVERAGE,time_IRS_on=INITIAL_IRS_TIME,
+  #House Modification
+  HOUcov=INITIAL_HOU_COVERAGE,time_HOU_on=INITIAL_HOU_TIME,
+  #Personal Protection Measure
+  PPMcov=INITIAL_PPM_COVERAGE,time_PPM_on=INITIAL_PPM_TIME,
+  #Cattle - Systemic
+  ECScov=INITIAL_ECS_COVERAGE,time_ECS_on=INITIAL_ECS_TIME,
+  #Cattle - topical
+  ECTcov=INITIAL_ECT_COVERAGE,time_ECT_on=INITIAL_ECT_TIME,
+  #Resting & Ovipositing - Ovitraps --same for ATSB, SSP
+  OVIcov=INITIAL_OVI_COVERAGE,time_OVI_on=INITIAL_OVI_TIME)
+
+#Pass in interventions parameter with updated coverage and the specie
+
+theta <<- getTheta(interventionParameters=INTERVENTION_PARAMETERS, 
+                   speciesSpecificParameters=MOSQUITO_PARAMETERS_1)
+
+
+## Initialize the model
+initState <<- calculateInitialState(theta)
+
+IVM_traj <<- runODE(INITIAL_MODELRUNTIME_VALUE,1,initState,theta,"daspk")
+
+IVM_traj <- IVM_traj[-c(1,2), ]
+```
+
+Run the model - eventually produce different IVM_traj for different scenarios, eg., 1 intervention, 2 inter, etc
+
+```{r,echo=FALSE}
+#| echo: FALSE
+
+
+MOSQUITO_PARAMETERS_1 = getAnGambiaeParameters()
+# MOSQUITO_PARAMETERS_2 = getAnArabiensisParameters()
+# MOSQUITO_PARAMETERS_3 = getAnFunestusParameters()
+
+# simulation runs per day - enter the end time
+INITIAL_MODELRUNTIME_VALUE   = 365
+
+#Enter the coverage for a specific intervetion
+# To turn it on  - enter the required time which is < the max model run time
+# To turn it off - enter INITIAL_MODELRUNTIME_VALUE + 1
+
+###************************************************************
+
+#Source reduction, coverage value, time it is on
+INITIAL_SRE_COVERAGE = 0.0
+INITIAL_SRE_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+#LArvaciding, coverage value, time it is on
+INITIAL_LAR_COVERAGE = 0.6
+INITIAL_LAR_TIME     = 150 
+
+#Biological, coverage value, time it is on
+INITIAL_BIO_COVERAGE = 0.0
+INITIAL_BIO_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+#ATSB, coverage value, time it is on
+INITIAL_ATSB_COVERAGE = 0.0
+INITIAL_ATSB_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+#Space Spraying, coverage value, time it is on
+INITIAL_SSP_COVERAGE = .00
+INITIAL_SSP_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+#Odor Traps, coverage value, time it is on
+INITIAL_OBT_COVERAGE = .00
+INITIAL_OBT_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+#LLINs, coverage value, time it is on
+INITIAL_ITN_COVERAGE = 0.3
+INITIAL_ITN_TIME     = 0
+#IRS
+INITIAL_IRS_COVERAGE = 0.0
+INITIAL_IRS_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+#House modification
+INITIAL_HOU_COVERAGE = 0.0
+INITIAL_HOU_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+#Personal Protection measure
+INITIAL_PPM_COVERAGE = 0.0
+INITIAL_PPM_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+#Cattle - Systemic
+INITIAL_ECS_COVERAGE = 0.0
+INITIAL_ECS_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+#Cattle - Topical
+INITIAL_ECT_COVERAGE = 0.0
+INITIAL_ECT_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+#Resting and Ovipositing - OviTraps -assuming same coverage for ATSB and SSP
+INITIAL_OVI_COVERAGE = 0.0
+INITIAL_OVI_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+## Get intervetions parameters - LLINs for testing
+#INTERVENTION_PARAMETERS = getInterventionsParameters(ITNcov=INITIAL_ITN_COVERAGE,time_ITN_on=INITIAL_ITN_TIME)
+
+## Get intervetions parameters
+INTERVENTION_PARAMETERS = getInterventionsParameters(
+  #Source Reduction
+  SREcov=INITIAL_SRE_COVERAGE,time_SRE_on=INITIAL_SRE_TIME,
+  #Larvaciding
+  LARcov=INITIAL_LAR_COVERAGE,time_LAR_on=INITIAL_LAR_TIME,
+  #Biological Control
+  BIOcov=INITIAL_BIO_COVERAGE,time_BIO_on=INITIAL_BIO_TIME,
+  
+  #ATSB
+  ATSBcov=INITIAL_ATSB_COVERAGE,time_ATSB_on=INITIAL_ATSB_TIME,
+  #Space Spraying
+  SSPcov=INITIAL_SSP_COVERAGE,time_SSP_on=INITIAL_SSP_TIME,
+  #Odor Traps
+  OBTcov=INITIAL_OBT_COVERAGE,time_OBT_on=INITIAL_OBT_TIME,
+  #LLINs
+  ITNcov=INITIAL_ITN_COVERAGE,time_ITN_on=INITIAL_ITN_TIME,
+  #IRS
+  IRScov=INITIAL_IRS_COVERAGE,time_IRS_on=INITIAL_IRS_TIME,
+  #House Modification
+  HOUcov=INITIAL_HOU_COVERAGE,time_HOU_on=INITIAL_HOU_TIME,
+  #Personal Protection Measure
+  PPMcov=INITIAL_PPM_COVERAGE,time_PPM_on=INITIAL_PPM_TIME,
+  #Cattle - Systemic
+  ECScov=INITIAL_ECS_COVERAGE,time_ECS_on=INITIAL_ECS_TIME,
+  #Cattle - topical
+  ECTcov=INITIAL_ECT_COVERAGE,time_ECT_on=INITIAL_ECT_TIME,
+  #Resting & Ovipositing - Ovitraps --same for ATSB, SSP
+  OVIcov=INITIAL_OVI_COVERAGE,time_OVI_on=INITIAL_OVI_TIME)
+
+#Pass in interventions parameter with updated coverage and the specie
+
+theta <<- getTheta(interventionParameters=INTERVENTION_PARAMETERS, 
+                   speciesSpecificParameters=MOSQUITO_PARAMETERS_1)
+
+
+## Initialize the model
+initState <<- calculateInitialState(theta)
+
+IVM_traj_2 <<- runODE(INITIAL_MODELRUNTIME_VALUE,1,initState,theta,"daspk")
+
+IVM_traj_2<- IVM_traj_2[-c(1,2), ]
+```
+
+```{r,echo = FALSE}
+#| echo: FALSE
+
+
+MOSQUITO_PARAMETERS_1 = getAnGambiaeParameters()
+
+# simulation runs per day - enter the end time
+INITIAL_MODELRUNTIME_VALUE   = 365
+
+#Enter the coverage for a specific intervetion
+# To turn it on  - enter the required time which is < the max model run time
+# To turn it off - enter INITIAL_MODELRUNTIME_VALUE + 1
+
+###************************************************************
+
+#Source reduction, coverage value, time it is on
+INITIAL_SRE_COVERAGE = 0.0
+INITIAL_SRE_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+#LArvaciding, coverage value, time it is on
+INITIAL_LAR_COVERAGE = 0.0
+INITIAL_LAR_TIME     = 0 
+
+#Biological, coverage value, time it is on
+INITIAL_BIO_COVERAGE = 0.0
+INITIAL_BIO_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+#ATSB, coverage value, time it is on
+INITIAL_ATSB_COVERAGE = 0.0
+INITIAL_ATSB_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+#Space Spraying, coverage value, time it is on
+INITIAL_SSP_COVERAGE = .00
+INITIAL_SSP_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+#Odor Traps, coverage value, time it is on
+INITIAL_OBT_COVERAGE = .00
+INITIAL_OBT_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+#LLINs, coverage value, time it is on
+INITIAL_ITN_COVERAGE = 0.1
+INITIAL_ITN_TIME     = 0
+#IRS
+INITIAL_IRS_COVERAGE = 0.0
+INITIAL_IRS_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+#House modification
+INITIAL_HOU_COVERAGE = 0.0
+INITIAL_HOU_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+#Personal Protection measure
+INITIAL_PPM_COVERAGE = 0.0
+INITIAL_PPM_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+#Cattle - Systemic
+INITIAL_ECS_COVERAGE = 0.0
+INITIAL_ECS_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+#Cattle - Topical
+INITIAL_ECT_COVERAGE = 0.0
+INITIAL_ECT_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+#Resting and Ovipositing - OviTraps -assuming same coverage for ATSB and SSP
+INITIAL_OVI_COVERAGE = 0.0
+INITIAL_OVI_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+## Get intervetions parameters - LLINs for testing
+#INTERVENTION_PARAMETERS = getInterventionsParameters(ITNcov=INITIAL_ITN_COVERAGE,time_ITN_on=INITIAL_ITN_TIME)
+
+## Get intervetions parameters
+INTERVENTION_PARAMETERS = getInterventionsParameters(
+  #Source Reduction
+  SREcov=INITIAL_SRE_COVERAGE,time_SRE_on=INITIAL_SRE_TIME,
+  #Larvaciding
+  LARcov=INITIAL_LAR_COVERAGE,time_LAR_on=INITIAL_LAR_TIME,
+  #Biological Control
+  BIOcov=INITIAL_BIO_COVERAGE,time_BIO_on=INITIAL_BIO_TIME,
+  
+  #ATSB
+  ATSBcov=INITIAL_ATSB_COVERAGE,time_ATSB_on=INITIAL_ATSB_TIME,
+  #Space Spraying
+  SSPcov=INITIAL_SSP_COVERAGE,time_SSP_on=INITIAL_SSP_TIME,
+  #Odor Traps
+  OBTcov=INITIAL_OBT_COVERAGE,time_OBT_on=INITIAL_OBT_TIME,
+  #LLINs
+  ITNcov=INITIAL_ITN_COVERAGE,time_ITN_on=INITIAL_ITN_TIME,
+  #IRS
+  IRScov=INITIAL_IRS_COVERAGE,time_IRS_on=INITIAL_IRS_TIME,
+  #House Modification
+  HOUcov=INITIAL_HOU_COVERAGE,time_HOU_on=INITIAL_HOU_TIME,
+  #Personal Protection Measure
+  PPMcov=INITIAL_PPM_COVERAGE,time_PPM_on=INITIAL_PPM_TIME,
+  #Cattle - Systemic
+  ECScov=INITIAL_ECS_COVERAGE,time_ECS_on=INITIAL_ECS_TIME,
+  #Cattle - topical
+  ECTcov=INITIAL_ECT_COVERAGE,time_ECT_on=INITIAL_ECT_TIME,
+  #Resting & Ovipositing - Ovitraps --same for ATSB, SSP
+  OVIcov=INITIAL_OVI_COVERAGE,time_OVI_on=INITIAL_OVI_TIME)
+
+#Pass in interventions parameter with updated coverage and the specie
+
+theta <<- getTheta(interventionParameters=INTERVENTION_PARAMETERS, 
+                   speciesSpecificParameters=MOSQUITO_PARAMETERS_1)
+
+
+## Initialize the model
+initState <<- calculateInitialState(theta)
+
+IVM_traj_3 <<- runODE(INITIAL_MODELRUNTIME_VALUE,1,initState,theta,"daspk")
+
+IVM_traj_3<- IVM_traj_3[-c(1,2), ]
+```
+
+```{r,echo = FALSE}
+#| echo: FALSE
+
+
+MOSQUITO_PARAMETERS_1 = getAnGambiaeParameters()
+# MOSQUITO_PARAMETERS_2 = getAnArabiensisParameters()
+# MOSQUITO_PARAMETERS_3 = getAnFunestusParameters()
+
+# simulation runs per day - enter the end time
+INITIAL_MODELRUNTIME_VALUE   = 365
+
+#Enter the coverage for a specific intervetion
+# To turn it on  - enter the required time which is < the max model run time
+# To turn it off - enter INITIAL_MODELRUNTIME_VALUE + 1
+
+###************************************************************
+
+#Source reduction, coverage value, time it is on
+INITIAL_SRE_COVERAGE = 0.0
+INITIAL_SRE_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+#LArvaciding, coverage value, time it is on
+INITIAL_LAR_COVERAGE = 0.8
+INITIAL_LAR_TIME     = 150 
+
+#Biological, coverage value, time it is on
+INITIAL_BIO_COVERAGE = 0.0
+INITIAL_BIO_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+#ATSB, coverage value, time it is on
+INITIAL_ATSB_COVERAGE = 0.0
+INITIAL_ATSB_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+#Space Spraying, coverage value, time it is on
+INITIAL_SSP_COVERAGE = .00
+INITIAL_SSP_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+#Odor Traps, coverage value, time it is on
+INITIAL_OBT_COVERAGE = .00
+INITIAL_OBT_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+#LLINs, coverage value, time it is on
+INITIAL_ITN_COVERAGE = 0.1
+INITIAL_ITN_TIME     = 0
+#IRS
+INITIAL_IRS_COVERAGE = 0.0
+INITIAL_IRS_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+#House modification
+INITIAL_HOU_COVERAGE = 0.0
+INITIAL_HOU_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+#Personal Protection measure
+INITIAL_PPM_COVERAGE = 0.0
+INITIAL_PPM_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+#Cattle - Systemic
+INITIAL_ECS_COVERAGE = 0.0
+INITIAL_ECS_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+#Cattle - Topical
+INITIAL_ECT_COVERAGE = 0.0
+INITIAL_ECT_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+#Resting and Ovipositing - OviTraps -assuming same coverage for ATSB and SSP
+INITIAL_OVI_COVERAGE = 0.0
+INITIAL_OVI_TIME     = INITIAL_MODELRUNTIME_VALUE + 1
+
+## Get intervetions parameters - LLINs for testing
+#INTERVENTION_PARAMETERS = getInterventionsParameters(ITNcov=INITIAL_ITN_COVERAGE,time_ITN_on=INITIAL_ITN_TIME)
+
+## Get intervetions parameters
+INTERVENTION_PARAMETERS = getInterventionsParameters(
+  #Source Reduction
+  SREcov=INITIAL_SRE_COVERAGE,time_SRE_on=INITIAL_SRE_TIME,
+  #Larvaciding
+  LARcov=INITIAL_LAR_COVERAGE,time_LAR_on=INITIAL_LAR_TIME,
+  #Biological Control
+  BIOcov=INITIAL_BIO_COVERAGE,time_BIO_on=INITIAL_BIO_TIME,
+  
+  #ATSB
+  ATSBcov=INITIAL_ATSB_COVERAGE,time_ATSB_on=INITIAL_ATSB_TIME,
+  #Space Spraying
+  SSPcov=INITIAL_SSP_COVERAGE,time_SSP_on=INITIAL_SSP_TIME,
+  #Odor Traps
+  OBTcov=INITIAL_OBT_COVERAGE,time_OBT_on=INITIAL_OBT_TIME,
+  #LLINs
+  ITNcov=INITIAL_ITN_COVERAGE,time_ITN_on=INITIAL_ITN_TIME,
+  #IRS
+  IRScov=INITIAL_IRS_COVERAGE,time_IRS_on=INITIAL_IRS_TIME,
+  #House Modification
+  HOUcov=INITIAL_HOU_COVERAGE,time_HOU_on=INITIAL_HOU_TIME,
+  #Personal Protection Measure
+  PPMcov=INITIAL_PPM_COVERAGE,time_PPM_on=INITIAL_PPM_TIME,
+  #Cattle - Systemic
+  ECScov=INITIAL_ECS_COVERAGE,time_ECS_on=INITIAL_ECS_TIME,
+  #Cattle - topical
+  ECTcov=INITIAL_ECT_COVERAGE,time_ECT_on=INITIAL_ECT_TIME,
+  #Resting & Ovipositing - Ovitraps --same for ATSB, SSP
+  OVIcov=INITIAL_OVI_COVERAGE,time_OVI_on=INITIAL_OVI_TIME)
+
+#Pass in interventions parameter with updated coverage and the specie
+
+theta <<- getTheta(interventionParameters=INTERVENTION_PARAMETERS, 
+                   speciesSpecificParameters=MOSQUITO_PARAMETERS_1)
+
+
+## Initialize the model
+initState <<- calculateInitialState(theta)
+
+IVM_traj_4 <<- runODE(INITIAL_MODELRUNTIME_VALUE,1,initState,theta,"daspk")
+
+IVM_traj_4<- IVM_traj_4[-c(1,2), ]
+```
+
+# RESULTS SECTION
+
+```{r,echo = FALSE}
+#| echo: FALSE
+#plotTrajectory(IVM_traj)
+dig1<-plotTrajectory(IVM_traj_2)
+dig2<-plotTrajectoryimmature(IVM_traj_2)
+
+# ggsave("mature_plot.png", plot = dig1,width = 10, height = 6, units = "in", dpi = 300, device = "png")
+# 
+# ggsave("immature_plot.png", plot = dig2,width = 10, height = 6, units = "in", dpi = 300, device = "png")
+
+
+
+DIGNEW<-ggplot(IVM_traj_2)+
+  geom_line(aes(x=time,y=LL),color="green",size=1.75)+
+  theme_classic()+
+  labs(x="Time(days)",y="Late Instar")+
+  theme(plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 90, size = 12),  # Adjust the size for better visibility
+    axis.text.y = element_text(size = 12),  # Adjust the size for better visibility
+    axis.title.x = element_text(size = 20),  # Adjust the size for better visibility
+    axis.title.y = element_text(size = 20),
+    legend.position = "right",
+    legend.title = element_text( size = 20),
+    legend.text = element_text(size = 20))
+
+# ggsave("larval_plot.png", plot = DIGNEW,width = 10, height = 6, units = "in", dpi = 300, device = "png")
+
+
+```
+
+
+
+```{r,echo = FALSE}
+df_stages <- IVM_traj_2 %>%
+  select(EL, LL, PL, SV, EV, IV)
+
+# Convert to long format
+df_long <- df_stages %>%
+  pivot_longer(cols = everything(),
+               names_to = "Stage",
+               values_to = "Number")
+# Fix the order of stages
+df_long$Stage <- factor(df_long$Stage,
+                        levels = c("EL", "LL", "PL", "SV", "EV", "IV"))
+
+
+
+
+di4<-ggplot(df_long, aes(x = Stage, y = log(Number), fill = Stage)) +
+  geom_bar(stat = "identity") +
+  scale_y_continuous(
+    limits = c(0, NA),   # force y-axis to start at 0
+    labels = scales::comma
+  ) +
+  labs(x = "Mosquito Stage", y = "Number of Mosquitoes") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 90, size = 12),  # Adjust the size for better visibility
+    axis.text.y = element_text(size = 12),  # Adjust the size for better visibility
+    axis.title.x = element_text(size = 20),  # Adjust the size for better visibility
+    axis.title.y = element_text(size = 20),
+    legend.position = "right",
+    legend.title = element_text( size = 20),
+    legend.text = element_text(size = 20)) +
+  scale_fill_discrete(labels = c("EL" = "early instar", "LL" = "late instar", "PL" = "pupae", "SV" = "susceptible mosquito", "EV" = "exposed mosquito", "IV" = "infected mosquito"))
+# ggsave("bar_plot.png", plot = di4,width = 10, height = 6, units = "in", dpi = 300, device = "png")
+```
+
+
+
+# fig 5 combined
+
+```{r,echo = FALSE}
+library(gridExtra)
+r1<-grid.arrange(dig1,dig2,DIGNEW,di4)
+# ggsave("combined_plot.png", plot = r1,width = 10, height = 6, units = "in", dpi = 300, device = "png")
+
+r1
+```
+
+# infected mosquito reduction
+
+```{r,echo = FALSE}
+library(boot)
+# Calculate the total number of infected cases before and after intervention
+total_cases_before <- sum(IVM_traj_3$IV)
+total_cases_after <- sum(IVM_traj_4$IV)
+
+# Calculate the percentage reduction
+percentage_reduction <- ((total_cases_before - total_cases_after) / total_cases_before) * 100
+
+percentage_reduction
+
+```
+
+
+
+# eir reduction
+
+```{r,echo = FALSE}
+library(boot)
+# Calculate the total number of infected cases before and after intervention
+total_cases_before <- sum(IVM_traj$EIR)
+total_cases_after <- sum(IVM_traj_2$EIR)
+
+# Calculate the percentage reduction
+percentage_reduction <- ((total_cases_before - total_cases_after) / total_cases_before) * 100
+
+percentage_reduction
+```
+
+
+
+
+
+# fig6.b - mdensity plot
+
+```{r,echo = FALSE}
+#| echo: FALSE
+
+md_plot <- ggplot() +
+  theme_grey(base_size = 18, base_family = "") +
+  ylim(0, NA) +
+  geom_line(data=IVM_traj_3, aes(x=time, y=Mdensity,colour="Before Larv"),size=1.75) + 
+  geom_line(data=IVM_traj_4, aes(x=time, y=Mdensity,colour="After Larv"),size=1.75) +
+  labs(x = "days", y = "Mosquito Density", color = "Scenario")+
+  theme_classic()+
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 90, size = 12),  # Adjust the size for better visibility
+    axis.text.y = element_text(size = 12),  # Adjust the size for better visibility
+    axis.title.x = element_text(size = 20),  # Adjust the size for better visibility
+    axis.title.y = element_text(size = 20),
+    legend.position = "right",
+    legend.title = element_text( size = 20),
+    legend.text = element_text(size = 20)
+  )
+md_plot
+# ggsave("md_plot.png", plot = md_plot, width = 10, height = 6, units = "in", dpi = 300)
+```
+
+# reduction percent in mdensity
+
+```{r,echo = FALSE}
+library(boot)
+# Calculate the total number of infected cases before and after intervention
+total_cases_before <- sum(IVM_traj$Mdensity)
+total_cases_after <- sum(IVM_traj_2$Mdensity)
+
+# Calculate the percentage reduction
+percentage_reduction <- ((total_cases_before - total_cases_after) / total_cases_before) * 100
+
+percentage_reduction
+```
+
+# figure 1 monthly data collected
+
+```{r,echo = FALSE}
+df1<- read.csv("C:/Users/Admin/Desktop/SwissTPH-20250715T115252Z-1-004/SwissTPH/my_project/2025_retrive/my_project-20250826T113737Z-1-001/my_project/trial fitting/monthdata.csv")
+
+df2<-read.csv("C:/Users/Admin/Desktop/SwissTPH-20250715T115252Z-1-004/SwissTPH/my_project/2025_retrive/my_project-20250826T113737Z-1-001/my_project/running codes june2023/combined_daily_data.csv",sep=";")
+
+
+
+# Load the lubridate package for easy date manipulation
+library(lubridate)
+library(ggplot2)
+
+# Convert the character date column to Date class
+df2$ED1_Date_of_collection_DT <- as.Date(df2$ED1_Date_of_collection_DT, format = "%d.%m.%Y")
+
+
+# Group the sum of people by month
+monthly_sum <- df2 %>%
+  mutate(month = floor_date(ED1_Date_of_collection_DT, "month")) %>%
+  group_by(month) %>%
+  summarise(total = sum(TOTAL_FEMALE))
+
+
+# Extract year and create a color column
+dfn <- monthly_sum %>%
+  mutate(Color = ifelse(month < "2020-07-01", "red", "skyblue"))
+
+monthly_sum1 <- dfn %>%
+  mutate(month = as.character(month))
+
+
+# Create the plot
+fig1ms<-ggplot(monthly_sum1, aes(x = month, y = total, group = 1)) +
+  geom_line(aes(color = Color),size=1.75) +
+  geom_point() +
+  geom_vline(xintercept="2020-07-01",linetype = "dashed")+
+  scale_color_manual(values = c("red" = "red", "skyblue" = "skyblue"),
+                     labels = c("Control",expression(italic("Intervention")))) +
+  labs(title = "",
+       x = "Time (Months)",
+       y = "Number of Mosquitoes Collected",
+       color=" ") +
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, size = 12),  # Adjust the size for better visibility
+        axis.text.y = element_text(size = 12),  # Adjust the size for better visibility
+        axis.title.x = element_text(size = 15),  # Adjust the size for better visibility
+        axis.title.y = element_text(size = 15),
+        legend.text = element_text(face = "italic"))
+
+
+fig1ms
+# ggsave("figure1ms_plot.png", plot = fig1ms, width = 10, height = 6, units = "in", dpi = 300)
+
+
+ 
+
+```
+
+# figure 2 - rufiji map
+
+```{r,echo = FALSE}
+# Install packages if missing
+#install.packages(c("geodata", "sf", "ggplot2", "dplyr", "cowplot"))
+library(ggplot2)
+library(cowplot)
+library(sf)
+library(dplyr)
+library(geodata)
+
+# Load GADM data
+tanzania <- gadm(country = "TZA", level = 1, path = tempdir())
+tanzania_sf <- st_as_sf(tanzania)
+pwani <- tanzania_sf %>% filter(NAME_1 == "Pwani")
+
+tanzania_l2 <- gadm(country = "TZA", level = 2, path = tempdir())
+tanzania_l2_sf <- st_as_sf(tanzania_l2)
+pwani_districts <- tanzania_l2_sf %>% filter(NAME_1 == "Pwani")
+rufiji <- pwani_districts %>% filter(NAME_2 == "Rufiji")
+
+# MAP 1: Tanzania
+map_tz <- ggplot() +
+  geom_sf(data = tanzania_sf, fill = "grey80", color = "white") +
+  geom_sf(data = pwani, fill = "orange", color = "black", size = 0.4) +
+  theme_void()
+
+# MAP 2: Pwani
+map_pwani <- ggplot() +
+  geom_sf(data = pwani_districts, fill = "grey80", color = "white", size = 0.3) +
+  geom_sf(data = rufiji, fill = "orange", color = "black", size = 0.6) +
+  theme_void()
+
+# MAP 3: Rufiji
+map_rufiji <- ggplot() +
+  geom_sf(data = rufiji, fill = "orange", color = "black", size = 0.4) +
+  theme_void()
+
+# Combine maps
+combined <- ggdraw() +
+  draw_plot(map_tz, x = 0, y = 0, width = 0.4, height = 1) +
+  draw_plot(map_pwani, x = 0.45, y = 0.4, width = 0.3, height = 0.5) +
+  draw_plot(map_rufiji, x = 0.8, y = 0.55, width = 0.15, height = 0.3)
+
+# Now add curved arrows using ggplotGrob and annotation_custom
+library(grid)
+
+# Tanzania -> Pwani
+arrow1 <- linesGrob(
+  x = c(0.38, 0.45),
+  y = c(0.65, 0.65),
+  arrow = arrow(length = unit(0.15, "inches")),
+  gp = gpar(col = "black", lwd = 2)
+)
+
+# Pwani -> Rufiji
+arrow2 <- linesGrob(
+  x = c(0.72, 0.8),
+  y = c(0.65, 0.7),
+  arrow = arrow(length = unit(0.15, "inches")),
+  gp = gpar(col = "black", lwd = 2)
+)
+
+# Draw everything together
+grid.newpage()
+grid.draw(combined)
+grid.draw(arrow1)
+grid.draw(arrow2)
+
+```
