@@ -514,8 +514,6 @@ DIGNEW<-ggplot(IVM_traj_2)+
 
 ```
 
-
-
 ```{r,echo = FALSE}
 df_stages <- IVM_traj_2 %>%
   select(EL, LL, PL, SV, EV, IV)
@@ -552,8 +550,6 @@ di4<-ggplot(df_long, aes(x = Stage, y = log(Number), fill = Stage)) +
 # ggsave("bar_plot.png", plot = di4,width = 10, height = 6, units = "in", dpi = 300, device = "png")
 ```
 
-
-
 # fig 5 combined
 
 ```{r,echo = FALSE}
@@ -579,8 +575,6 @@ percentage_reduction
 
 ```
 
-
-
 # eir reduction
 
 ```{r,echo = FALSE}
@@ -594,10 +588,6 @@ percentage_reduction <- ((total_cases_before - total_cases_after) / total_cases_
 
 percentage_reduction
 ```
-
-
-
-
 
 # fig6.b - mdensity plot
 
@@ -642,55 +632,67 @@ percentage_reduction
 # figure 1 monthly data collected
 
 ```{r,echo = FALSE}
-df1<- read.csv("C:/Users/Admin/Desktop/SwissTPH-20250715T115252Z-1-004/SwissTPH/my_project/2025_retrive/my_project-20250826T113737Z-1-001/my_project/trial fitting/monthdata.csv")
-
-df2<-read.csv("C:/Users/Admin/Desktop/SwissTPH-20250715T115252Z-1-004/SwissTPH/my_project/2025_retrive/my_project-20250826T113737Z-1-001/my_project/running codes june2023/combined_daily_data.csv",sep=";")
-
-
-
-# Load the lubridate package for easy date manipulation
-library(lubridate)
-library(ggplot2)
-
-# Convert the character date column to Date class
-df2$ED1_Date_of_collection_DT <- as.Date(df2$ED1_Date_of_collection_DT, format = "%d.%m.%Y")
-
-
-# Group the sum of people by month
-monthly_sum <- df2 %>%
-  mutate(month = floor_date(ED1_Date_of_collection_DT, "month")) %>%
-  group_by(month) %>%
-  summarise(total = sum(TOTAL_FEMALE))
+monthly_sum <- read.csv("monthly_data_collection.csv")
 
 
 # Extract year and create a color column
 dfn <- monthly_sum %>%
-  mutate(Color = ifelse(month < "2020-07-01", "red", "skyblue"))
+  mutate(Color = ifelse(month < "2020-07-01", "Control", "Intervention"))
 
-monthly_sum1 <- dfn %>%
-  mutate(month = as.character(month))
+monthly_sum1 <- monthly_sum %>%
+  mutate(
+    month = as.Date(month),  # if it is already ISO-like "YYYY-MM-DD"
+    Color = ifelse(month < as.Date("2020-07-01"), "Control", "Intervention"),
+    month_label = format(month, "%b-%y"),
+    month = as.character(month)
+  )
 
+
+# Keep only every 2nd month for x-axis ticks to reduce crowding
+tick_breaks <- monthly_sum1$month[seq(1, nrow(monthly_sum1), by = 2)]
+tick_labels <- monthly_sum1$month_label[seq(1, nrow(monthly_sum1), by = 2)]
 
 # Create the plot
-fig1ms<-ggplot(monthly_sum1, aes(x = month, y = total, group = 1)) +
-  geom_line(aes(color = Color),size=1.75) +
+fig1ms <- ggplot(monthly_sum1, aes(x = month, y = total, group = 1)) +
+  geom_line(aes(color = Color), size = 1.75) +
   geom_point() +
-  geom_vline(xintercept="2020-07-01",linetype = "dashed")+
-  scale_color_manual(values = c("red" = "red", "skyblue" = "skyblue"),
-                     labels = c("Control",expression(italic("Intervention")))) +
+  
+  # Dashed vertical line separating the two phases
+  geom_vline(xintercept = "2020-07-01", linetype = "dashed") +
+  
+  # Label on the dashed line to clarify what it marks
+  annotate("text",
+           x = "2020-07-01",
+           y = max(monthly_sum1$total) * 0.95,
+           label = "Larviciding\nintroduced",
+           hjust = -0.1,
+           size = 4,
+           fontface = "plain") +
+  
+  
+  # Simplified x-axis tick labels (every 2nd month, Mon-YY format)
+  scale_x_discrete(breaks = tick_breaks, labels = tick_labels) +
+  
+  # Regular (non-italic) legend labels, corrected color mapping
+  scale_color_manual(values = c("Control" = "red", "Intervention" = "skyblue"),
+                     labels = c("Control", "Intervention")) +
+  
   labs(title = "",
        x = "Time (Months)",
        y = "Number of Mosquitoes Collected",
-       color=" ") +
-  theme_classic()+
-  theme(axis.text.x = element_text(angle = 90, size = 12),  # Adjust the size for better visibility
-        axis.text.y = element_text(size = 12),  # Adjust the size for better visibility
-        axis.title.x = element_text(size = 15),  # Adjust the size for better visibility
-        axis.title.y = element_text(size = 15),
-        legend.text = element_text(face = "italic"))
-
-
-fig1ms
+       color = " ") +
+  
+  theme_classic() +
+  theme(
+    # X-axis: larger font, still angled for readability
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    axis.text.y = element_text(size = 12),
+    axis.title.x = element_text(size = 15),
+    axis.title.y = element_text(size = 15),
+    # Legend: plain (not italic) font
+    legend.text = element_text(face = "plain"),
+    legend.title = element_blank()
+  )
 # ggsave("figure1ms_plot.png", plot = fig1ms, width = 10, height = 6, units = "in", dpi = 300)
 
 

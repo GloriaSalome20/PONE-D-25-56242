@@ -62,7 +62,7 @@ library(magrittr)
 
 ```{r,echo=FALSE}
 #loading the data thatwill be fited in the model
-df <- read.csv("C:/Users/Admin/Desktop/SwissTPH-20250715T115252Z-1-004/SwissTPH/my_project/2025_retrive/my_project-20250826T113737Z-1-001/my_project/stan_approach/new_data_intervention_daily_from_godlove2904.csv")
+df <- read.csv("monthly_data_collection.csv")
 
 
 #extracting the column involved, the mosquito number and days
